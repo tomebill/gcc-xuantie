@@ -144,4 +144,64 @@ extern int riscv_get_lmul (machine_mode);
 extern bool sched_finish_after_reload;
 extern bool sched_finish_executed;
 
+machine_mode preferred_simd_mode (scalar_mode);
+opt_machine_mode get_mask_mode (machine_mode);
+opt_machine_mode get_vector_mode (scalar_mode, poly_uint64);
+void expand_vec_series (rtx, rtx, rtx);
+void expand_vec_init (rtx, rtx);
+
+enum vlmul_type
+{
+  LMUL_1 = 0,
+  LMUL_2 = 1,
+  LMUL_4 = 2,
+  LMUL_8 = 3,
+  LMUL_RESERVED = 4,
+  LMUL_F8 = 5,
+  LMUL_F4 = 6,
+  LMUL_F2 = 7,
+  NUM_LMUL = 8
+};
+enum vlmul_type get_vlmul (machine_mode);
+int get_ta (rtx);
+int get_ma (rtx);
+bool sew64_scalar_helper (rtx *, rtx *, rtx, machine_mode, machine_mode,
+			  bool, void (*)(rtx *, rtx));
+#ifdef RTX_CODE
+bool has_vi_variant_p (rtx_code, rtx);
+#endif
+#define RVV_VUNDEF(MODE)                                                       \
+  gen_rtx_UNSPEC (MODE, gen_rtvec (1, gen_rtx_REG (SImode, X0_REGNUM)),        \
+		  UNSPEC_VUNDEF)
+void emit_len_op (unsigned icode, rtx dest, rtx src, rtx len, machine_mode mask_mode);
+void emit_len_binop (unsigned icode, rtx dest, rtx src1, rtx src2, rtx len,
+		machine_mode mask_mode, machine_mode scalar_mode);
+bool neg_simm5_p (rtx x);
+rtx gen_avl_for_scalar_move (rtx);
+rtx gen_scalar_move_mask (machine_mode);
+bool const_vec_all_same_in_range_p (rtx x, HOST_WIDE_INT minval,
+			       HOST_WIDE_INT maxval);
+
+enum tail_policy
+{
+  TAIL_UNDISTURBED = 0,
+  TAIL_AGNOSTIC = 1,
+  TAIL_ANY = 2,
+};
+
+enum mask_policy
+{
+  MASK_UNDISTURBED = 0,
+  MASK_AGNOSTIC = 1,
+  MASK_ANY = 2,
+};
+
+enum avl_type
+{
+  NONVLMAX,
+  VLMAX,
+};
+
+bool simm5_p (rtx x);
+
 #endif /* ! GCC_RISCV_PROTOS_H */

@@ -884,3 +884,233 @@
 (define_mode_attr VQWSUBMODE8 [
   (VNx8QI "SI") (VNx16QI "SI") (VNx32QI "SI") (VNx64QI "SI")
   (VNx128QI "SI")])
+
+(define_mode_attr VEL [
+  (VNx2QI "QI") (VNx4QI "QI") (VNx8QI "QI") (VNx16QI "QI") (VNx32QI "QI") (VNx64QI "QI") (VNx128QI "QI")
+  (VNx2HI "HI") (VNx4HI "HI") (VNx8HI "HI") (VNx16HI "HI") (VNx32HI "HI") (VNx64HI "HI")
+  (VNx2SI "SI") (VNx4SI "SI") (VNx8SI "SI") (VNx16SI "SI") (VNx32SI "SI")
+  (VNx2DI "DI") (VNx4DI "DI") (VNx8DI "DI") (VNx16DI "DI")
+  (VNx2SF "SF") (VNx4SF "SF") (VNx8SF "SF") (VNx16SF "SF") (VNx32SF "SF")
+  (VNx2DF "DF") (VNx4DF "DF") (VNx8DF "DF") (VNx16DF "DF")
+])
+
+(define_mode_attr vel [
+  (VNx2QI "qi") (VNx4QI "qi") (VNx8QI "qi") (VNx16QI "qi") (VNx32QI "qi") (VNx64QI "qi") (VNx128QI "qi")
+  (VNx2HI "hi") (VNx4HI "hi") (VNx8HI "hi") (VNx16HI "hi") (VNx32HI "hi") (VNx64HI "hi")
+  (VNx2SI "si") (VNx4SI "si") (VNx8SI "si") (VNx16SI "si") (VNx32SI "si")
+  (VNx2DI "di") (VNx4DI "di") (VNx8DI "di") (VNx16DI "di")
+  (VNx2SF "sf") (VNx4SF "sf") (VNx8SF "sf") (VNx16SF "sf") (VNx32SF "sf")
+  (VNx2DF "df") (VNx4DF "df") (VNx8DF "df") (VNx16DF "df")
+])
+
+(define_mode_iterator V [
+  VNx2QI VNx4QI VNx8QI VNx16QI VNx32QI VNx64QI VNx128QI
+  VNx2HI VNx4HI VNx8HI VNx16HI VNx32HI VNx64HI
+  VNx2SI VNx4SI VNx8SI VNx16SI VNx32SI
+  VNx2DI
+  VNx4DI VNx8DI VNx16DI
+  VNx2SF
+  VNx4SF
+  VNx8SF
+  VNx16SF
+  VNx32SF
+  VNx2DF
+  VNx4DF
+  VNx8DF
+  VNx16DF
+])
+
+(define_mode_iterator VI [
+  VNx2QI VNx4QI VNx8QI VNx16QI VNx32QI VNx64QI VNx128QI
+  VNx2HI VNx4HI VNx8HI VNx16HI VNx32HI VNx64HI
+  VNx2SI VNx4SI VNx8SI VNx16SI VNx32SI
+  VNx2DI
+  VNx4DI VNx8DI VNx16DI
+])
+
+(define_code_iterator any_int_binop_no_shift
+ [plus minus and ior xor smax umax smin umin mult div udiv mod umod
+])
+
+(define_mode_iterator VB [
+  VNx2BI VNx4BI VNx8BI VNx16BI VNx32BI
+  VNx64BI VNx128BI
+])
+
+(define_mode_attr VM [
+  (VNx2QI "VNx2BI") (VNx4QI "VNx4BI") (VNx8QI "VNx8BI") (VNx16QI "VNx16BI") (VNx32QI "VNx32BI") (VNx64QI "VNx64BI") (VNx128QI "VNx128BI")
+  (VNx2HI "VNx2BI") (VNx4HI "VNx4BI") (VNx8HI "VNx8BI") (VNx16HI "VNx16BI") (VNx32HI "VNx32BI") (VNx64HI "VNx64BI")
+  (VNx2SI "VNx2BI") (VNx4SI "VNx4BI") (VNx8SI "VNx8BI") (VNx16SI "VNx16BI") (VNx32SI "VNx32BI")
+  (VNx2DI "VNx2BI") (VNx4DI "VNx4BI") (VNx8DI "VNx8BI") (VNx16DI "VNx16BI")
+  (VNx2SF "VNx2BI") (VNx4SF "VNx4BI") (VNx8SF "VNx8BI") (VNx16SF "VNx16BI") (VNx32SF "VNx32BI")
+  (VNx2DF "VNx2BI") (VNx4DF "VNx4BI") (VNx8DF "VNx8BI") (VNx16DF "VNx16BI")
+  (VNx2x64QI "VNx64BI") (VNx2x32QI "VNx32BI") (VNx3x32QI "VNx32BI") (VNx4x32QI "VNx32BI")
+  (VNx2x16QI "VNx16BI") (VNx3x16QI "VNx16BI") (VNx4x16QI "VNx16BI") (VNx5x16QI "VNx16BI") (VNx6x16QI "VNx16BI") (VNx7x16QI "VNx16BI") (VNx8x16QI "VNx16BI")
+  (VNx2x32HI "VNx32BI") (VNx2x16HI "VNx16BI") (VNx3x16HI "VNx16BI") (VNx4x16HI "VNx16BI")
+  (VNx2x8HI "VNx8BI") (VNx3x8HI "VNx8BI") (VNx4x8HI "VNx8BI") (VNx5x8HI "VNx8BI") (VNx6x8HI "VNx8BI") (VNx7x8HI "VNx8BI") (VNx8x8HI "VNx8BI")
+  (VNx2x16SI "VNx16BI") (VNx2x8SI "VNx8BI") (VNx3x8SI "VNx8BI") (VNx4x8SI "VNx8BI")
+  (VNx2x4SI "VNx4BI") (VNx3x4SI "VNx4BI") (VNx4x4SI "VNx4BI") (VNx5x4SI "VNx4BI") (VNx6x4SI "VNx4BI") (VNx7x4SI "VNx4BI") (VNx8x4SI "VNx4BI")
+  (VNx2x8DI "VNx8BI") (VNx2x4DI "VNx4BI") (VNx3x4DI "VNx4BI") (VNx4x4DI "VNx4BI")
+  (VNx2x2DI "VNx2BI") (VNx3x2DI "VNx2BI") (VNx4x2DI "VNx2BI") (VNx5x2DI "VNx2BI") (VNx6x2DI "VNx2BI") (VNx7x2DI "VNx2BI") (VNx8x2DI "VNx2BI")
+  (VNx2x16SF "VNx16BI") (VNx2x8SF "VNx8BI") (VNx3x8SF "VNx8BI") (VNx4x8SF "VNx8BI")
+  (VNx2x4SF "VNx4BI") (VNx3x4SF "VNx4BI") (VNx4x4SF "VNx4BI") (VNx5x4SF "VNx4BI") (VNx6x4SF "VNx4BI") (VNx7x4SF "VNx4BI") (VNx8x4SF "VNx4BI")
+  (VNx2x8DF "VNx8BI")
+  (VNx2x4DF "VNx4BI") (VNx3x4DF "VNx4BI") (VNx4x4DF "VNx4BI")
+  (VNx2x2DF "VNx2BI") (VNx3x2DF "VNx2BI") (VNx4x2DF "VNx2BI") (VNx5x2DF "VNx2BI") (VNx6x2DF "VNx2BI") (VNx7x2DF "VNx2BI") (VNx8x2DF "VNx2BI")
+])
+
+(define_mode_iterator VI_D [
+  VNx2DI VNx4DI VNx8DI VNx16DI
+])
+
+(define_code_iterator any_commutative_binop [plus and ior xor
+  smax umax smin umin mult
+])
+
+(define_code_iterator any_non_commutative_binop [minus div udiv mod umod])
+
+(define_code_iterator any_sat_int_binop [ss_plus ss_minus us_plus us_minus])
+(define_code_iterator sat_int_plus_binop [ss_plus us_plus])
+(define_code_iterator sat_int_minus_binop [ss_minus us_minus])
+
+(define_mode_iterator VF [
+  VNx2SF
+  VNx4SF
+  VNx8SF
+  VNx16SF
+  VNx32SF
+  VNx2DF
+  VNx4DF
+  VNx8DF
+  VNx16DF
+])
+
+(define_code_iterator any_float_unop [neg abs sqrt])
+(define_code_iterator any_float_binop [plus mult smax smin minus div])
+
+(define_code_attr float_insn_type [
+			(plus "vfalu")
+			(mult "vfmul")
+			(smax "vfminmax")
+			(smin "vfminmax")
+			(minus "vfalu")
+			(div "vfdiv")
+			(neg "vfsgnj")
+			(abs "vfsgnj")
+			(sqrt "vfsqrt")])
+
+(define_code_attr binop_rhs1_predicate [
+			(plus "register_operand")
+			(minus "vector_arith_operand")
+			(ior "register_operand")
+			(xor "register_operand")
+			(and "register_operand")
+			(ashift "register_operand")
+			(ashiftrt "register_operand")
+			(lshiftrt "register_operand")
+			(smin "register_operand")
+			(smax "register_operand")
+			(umin "register_operand")
+			(umax "register_operand")
+			(mult "register_operand")
+			(div "register_operand")
+			(mod "register_operand")
+			(udiv "register_operand")
+			(umod "register_operand")
+			(ss_plus "register_operand")
+			(us_plus "register_operand")
+			(ss_minus "register_operand")
+			(us_minus "register_operand")])
+
+(define_code_attr binop_rhs2_predicate [
+			(plus "vector_arith_operand")
+			(minus "vector_neg_arith_operand")
+			(ior "vector_arith_operand")
+			(xor "vector_arith_operand")
+			(and "vector_arith_operand")
+			(ashift "vector_shift_operand")
+			(ashiftrt "vector_shift_operand")
+			(lshiftrt "vector_shift_operand")
+			(smin "register_operand")
+			(smax "register_operand")
+			(umin "register_operand")
+			(umax "register_operand")
+			(mult "register_operand")
+			(div "register_operand")
+			(mod "register_operand")
+			(udiv "register_operand")
+			(umod "register_operand")
+			(ss_plus "vector_arith_operand")
+			(us_plus "vector_arith_operand")
+			(ss_minus "vector_neg_arith_operand")
+			(us_minus "register_operand")])
+
+;; <binop_vi_variant_insn> expands to the insn name of binop matching constraint rhs1 is immediate.
+;; minus is negated as vadd and ss_minus is negated as vsadd, others remain <insn>.
+(define_code_attr binop_vi_variant_insn [(ashift "sll.vi")
+			       (ashiftrt "sra.vi")
+			       (lshiftrt "srl.vi")
+			       (div "div.vv")
+			       (mod "rem.vv")
+			       (udiv "divu.vv")
+			       (umod "remu.vv")
+			       (ior "or.vi")
+			       (xor "xor.vi")
+			       (and "and.vi")
+			       (plus "add.vi")
+			       (minus "add.vi")
+			       (smin "min.vv")
+			       (smax "max.vv")
+			       (umin "minu.vv")
+			       (umax "maxu.vv")
+			       (mult "mul.vv")
+			       (ss_plus "sadd.vi")
+			       (us_plus "saddu.vi")
+			       (ss_minus "sadd.vi")
+			       (us_minus "ssubu.vv")])
+
+(define_code_attr int_binop_insn_type [
+			(plus "vialu")
+			(minus "vialu")
+			(ior "vialu")
+			(xor "vialu")
+			(and "vialu")
+			(ashift "vshift")
+			(ashiftrt "vshift")
+			(lshiftrt "vshift")
+			(smin "viminmax")
+			(smax "viminmax")
+			(umin "viminmax")
+			(umax "viminmax")
+			(mult "vimul")
+			(div "vidiv")
+			(mod "vidiv")
+			(udiv "vidiv")
+			(umod "vidiv")
+			(ss_plus "vsalu")
+			(us_plus "vsalu")
+			(ss_minus "vsalu")
+			(us_minus "vsalu")])
+
+(define_code_attr binop_rhs2_constraint [
+			(plus "vr,vr,vr,vr,vi,vi,vi,vi,vr,vr,vr,vr")
+			(minus "vr,vr,vr,vr,vj,vj,vj,vj,vr,vr,vr,vr")
+			(ior "vr,vr,vr,vr,vi,vi,vi,vi,vr,vr,vr,vr")
+			(xor "vr,vr,vr,vr,vi,vi,vi,vi,vr,vr,vr,vr")
+			(and "vr,vr,vr,vr,vi,vi,vi,vi,vr,vr,vr,vr")
+			(ashift "vr,vr,vr,vr,vk,vk,vk,vk,vr,vr,vr,vr")
+			(ashiftrt "vr,vr,vr,vr,vk,vk,vk,vk,vr,vr,vr,vr")
+			(lshiftrt "vr,vr,vr,vr,vk,vk,vk,vk,vr,vr,vr,vr")
+			(smin "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(smax "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(umin "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(umax "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(mult "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(div "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(mod "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(udiv "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(umod "vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr,vr")
+			(ss_plus "vr,vr,vr,vr,vi,vi,vi,vi")
+			(us_plus "vr,vr,vr,vr,vi,vi,vi,vi")
+			(ss_minus "vr,vr,vr,vr,vj,vj,vj,vj")
+			(us_minus "vr,vr,vr,vr,vr,vr,vr,vr")])

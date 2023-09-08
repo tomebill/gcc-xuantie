@@ -124,6 +124,9 @@
   UNSPEC_VSM
   UNSPEC_VSETVL
   UNSPEC_VWLDST
+  UNSPEC_VUNDEF
+  UNSPEC_VLMAX
+  UNSPEC_VPREDICATE
 
   ;; Segment load/store
   UNSPEC_SEG_STORE
@@ -212,7 +215,33 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,SF,DF,TF"
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,SF,DF,TF,
+  VNx2BI,VNx4BI,VNx8BI,VNx16BI,VNx32BI,VNx64BI,VNx128BI,
+  VNx2QI,VNx4QI,VNx8QI,VNx16QI,VNx32QI,VNx64QI,VNx128QI,
+  VNx2HI,VNx4HI,VNx8HI,VNx16HI,VNx32HI,VNx64HI,
+  VNx2SI,VNx4SI,VNx8SI,VNx16SI,VNx32SI,
+  VNx2DI,VNx4DI,VNx8DI,VNx16DI,
+  VNx2SF,VNx4SF,VNx8SF,VNx16SF,VNx32SF,
+  VNx2DF,VNx4DF,VNx8DF,VNx16DF,
+  VNx2x64QI,VNx2x32QI,VNx3x32QI,VNx4x32QI,
+  VNx2x16QI,VNx3x16QI,VNx4x16QI,VNx5x16QI,VNx6x16QI,VNx7x16QI,VNx8x16QI,
+  VNx2x8QI,VNx3x8QI,VNx4x8QI,VNx5x8QI,VNx6x8QI,VNx7x8QI,VNx8x8QI,
+  VNx2x4QI,VNx3x4QI,VNx4x4QI,VNx5x4QI,VNx6x4QI,VNx7x4QI,VNx8x4QI,
+  VNx2x2QI,VNx3x2QI,VNx4x2QI,VNx5x2QI,VNx6x2QI,VNx7x2QI,VNx8x2QI,
+  VNx2x32HI,VNx2x16HI,VNx3x16HI,VNx4x16HI,
+  VNx2x8HI,VNx3x8HI,VNx4x8HI,VNx5x8HI,VNx6x8HI,VNx7x8HI,VNx8x8HI,
+  VNx2x4HI,VNx3x4HI,VNx4x4HI,VNx5x4HI,VNx6x4HI,VNx7x4HI,VNx8x4HI,
+  VNx2x2HI,VNx3x2HI,VNx4x2HI,VNx5x2HI,VNx6x2HI,VNx7x2HI,VNx8x2HI,
+  VNx2x16SI,VNx2x8SI,VNx3x8SI,VNx4x8SI,
+  VNx2x4SI,VNx3x4SI,VNx4x4SI,VNx5x4SI,VNx6x4SI,VNx7x4SI,VNx8x4SI,
+  VNx2x2SI,VNx3x2SI,VNx4x2SI,VNx5x2SI,VNx6x2SI,VNx7x2SI,VNx8x2SI,
+  VNx2x16SF,VNx2x8SF,VNx3x8SF,VNx4x8SF,
+  VNx2x4SF,VNx3x4SF,VNx4x4SF,VNx5x4SF,VNx6x4SF,VNx7x4SF,VNx8x4SF,
+  VNx2x2SF,VNx3x2SF,VNx4x2SF,VNx5x2SF,VNx6x2SF,VNx7x2SF,VNx8x2SF,
+  VNx2x8DI,VNx2x4DI,VNx3x4DI,VNx4x4DI,
+  VNx2x2DI,VNx3x2DI,VNx4x2DI,VNx5x2DI,VNx6x2DI,VNx7x2DI,VNx8x2DI,
+  VNx2x8DF,VNx2x4DF,VNx3x4DF,VNx4x4DF,
+  VNx2x2DF,VNx3x2DF,VNx4x2DF,VNx5x2DF,VNx6x2DF,VNx7x2DF,VNx8x2DF"
   (const_string "unknown"))
 
 ;; True if the main data type is twice the size of a word.
@@ -262,10 +291,12 @@
    atomic,
 
    fcvt_i,fsgnj,ebreak,
-   vset,varith,vcmp,vshift,vlogical,vmove,vmask,vred_bit,vmul,vmadd,vred_sum,
+   vset,vsetvl,varith,vcmp,vshift,vlogical,vmove,vmask,vred_bit,vmul,vmadd,vred_sum,
    vred_max,vdiv,vload,vstore,
    vfadd,vfsgnj,vfmul,vfwmul,vfmadd,vfwmadd,vfred,vfmove,vfmax,vfcmp,vfcvt,
-   vfdiv,vfsqrt,vfrec,vfclass,
+   vfdiv,vfsqrt,vfrec,vfclass,vldm,vstm,vmalu,
+
+   vfalu, vfminmax, vsalu,
 
    idivmod"
   (cond [(eq_attr "got" "load") (const_string "load")

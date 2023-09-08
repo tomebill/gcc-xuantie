@@ -1083,6 +1083,11 @@ extern poly_uint16 riscv_rvv_chunks;
 
 #define RISCV_DWARF_VLEN (4096 + 0xc22)
 
+/* The number of bits and bytes in a RVV vector.  */
+// 这里先配固定值吧
+#define BITS_PER_RISCV_VECTOR   128
+#define BYTES_PER_RISCV_VECTOR  16
+
 #ifdef HAVE_POLY_INT_H
 /* Information about a function's frame layout.  */
 struct GTY(())  riscv_frame_info {

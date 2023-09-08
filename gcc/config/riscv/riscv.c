@@ -70,6 +70,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "tree-ssanames.h"
 #include "riscv-vector-iterator.h"
+#include "targhooks.h"
+#include "rtx-vector-builder.h"
 
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
@@ -3245,6 +3247,14 @@ riscv_get_arg_info (struct riscv_arg_info *info, const CUMULATIVE_ARGS *cum,
   info->gpr_offset = cum->num_gprs;
   info->fpr_offset = cum->num_fprs;
 
+  /* TODO: Currently, it will cause an ICE for --param
+     riscv-autovec-preference=fixed-vlmax. So, we just return NULL_RTX here
+     let GCC generate loads/stores. Ideally, we should either warn the user not
+     to use an RVV vector type as function argument or support the calling
+     convention directly.  */
+  // if (riscv_v_ext_mode_p (mode))
+  //   return NULL_RTX;
+
   if (named)
     {
       riscv_aggregate_field fields[2];
@@ -6280,6 +6290,8 @@ riscv_vector_mode_supported_p (machine_mode mode)
   return false;
 }
 
+machine_mode
+preferred_simd_mode (scalar_mode mode);
 /* Implement TARGET_VECTORIZE_PREFERRED_SIMD_MODE.  */
 
 static machine_mode
@@ -6310,8 +6322,10 @@ riscv_preferred_simd_mode (scalar_mode mode)
       }
 #endif
 
-  if (riscv_dsp_preferred_mode (mode) != VOIDmode)
-    return riscv_dsp_preferred_mode (mode);
+  // if (riscv_dsp_preferred_mode (mode) != VOIDmode)
+  //   return riscv_dsp_preferred_mode (mode);
+
+  preferred_simd_mode(mode);
 
   return word_mode;
 }
@@ -6567,6 +6581,662 @@ riscv_asan_shadow_offset (void)
   return TARGET_64BIT ? (HOST_WIDE_INT_UC (0xd55550000)) : 0;
 }
 
+static bool
+autovec_use_vlmax_p (void)
+{
+  return true;
+}
+
+/* Return the vectorization machine mode for RVV according to LMUL.  */
+machine_mode
+preferred_simd_mode (scalar_mode mode)
+{
+  /* We will disable auto-vectorization when TARGET_MIN_VLEN < 128 &&
+     riscv_autovec_lmul < RVV_M2. Since GCC loop vectorizer report ICE when we
+     enable -march=rv64gc_zve32* and -march=rv32gc_zve64*. in the
+     'can_duplicate_and_interleave_p' of tree-vect-slp.cc. Since we have
+     VNx1SImode in -march=*zve32* and VNx1DImode in -march=*zve64*, they are
+     enabled in targetm. vector_mode_supported_p and SLP vectorizer will try to
+     use them. Currently, we can support auto-vectorization in
+     -march=rv32_zve32x_zvl128b. Wheras, -march=rv32_zve32x_zvl32b or
+     -march=rv32_zve32x_zvl64b are disabled.  */
+  if (autovec_use_vlmax_p ())
+    {
+  //     if (TARGET_MIN_VLEN < 128 && riscv_autovec_lmul < RVV_M2)
+	// return word_mode;
+      /* We use LMUL = 1 as base bytesize which is BYTES_PER_RISCV_VECTOR and
+	 riscv_autovec_lmul as multiply factor to calculate the the NUNITS to
+	 get the auto-vectorization mode.  */
+      poly_uint64 nunits;
+      poly_uint64 vector_size
+      	    = BYTES_PER_RISCV_VECTOR * 4; // 这里先直接配成m4
+      poly_uint64 scalar_size = GET_MODE_SIZE (mode);
+      gcc_assert (multiple_p (vector_size, scalar_size, &nunits));
+      machine_mode rvv_mode;
+      if (get_vector_mode (mode, nunits).exists (&rvv_mode))
+	        return rvv_mode;
+    }
+  /* TODO: We will support minimum length VLS auto-vectorization in
+     the future.  */
+  return word_mode;
+}
+
+
+opt_machine_mode
+get_mask_mode (machine_mode mode)
+{
+  return get_vector_mode (BImode, GET_MODE_NUNITS (mode));
+}
+
+/* Return the RVV vector mode that has NUNITS elements of mode INNER_MODE.
+   This function is not only used by builtins, but also will be used by
+   auto-vectorization in the future.  */
+opt_machine_mode
+get_vector_mode (scalar_mode inner_mode, poly_uint64 nunits)
+{
+  enum mode_class mclass;
+  if (inner_mode == E_BImode)
+    mclass = MODE_VECTOR_BOOL;
+  else if (FLOAT_MODE_P (inner_mode))
+    mclass = MODE_VECTOR_FLOAT;
+  else
+    mclass = MODE_VECTOR_INT;
+  machine_mode mode;
+  FOR_EACH_MODE_IN_CLASS (mode, mclass)
+    if (inner_mode == GET_MODE_INNER (mode)
+	&& known_eq (nunits, GET_MODE_NUNITS (mode))
+	/*&& riscv_v_ext_vector_mode_p (mode)*/)
+      return mode;
+  return opt_machine_mode ();
+}
+
+/* Return the RVV tuple mode if we can find the legal tuple mode for the
+   corresponding subpart mode and NF.  */
+// opt_machine_mode
+// get_tuple_mode (machine_mode subpart_mode, unsigned int nf)
+// {
+//   poly_uint64 nunits = GET_MODE_NUNITS (subpart_mode) * nf;
+//   scalar_mode inner_mode = GET_MODE_INNER (subpart_mode);
+//   enum mode_class mclass = GET_MODE_CLASS (subpart_mode);
+//   machine_mode mode;
+//   FOR_EACH_MODE_IN_CLASS (mode, mclass)
+//     if (inner_mode == GET_MODE_INNER (mode)
+// 	&& known_eq (nunits, GET_MODE_NUNITS (mode))
+// 	&& riscv_v_ext_tuple_mode_p (mode)
+// 	&& get_subpart_mode (mode) == subpart_mode)
+//       return mode;
+//   return opt_machine_mode ();
+// }
+
+#define RVV_VLMAX gen_rtx_REG (Pmode, X0_REGNUM)
+
+
+static unsigned
+get_sew (machine_mode mode)
+{
+  unsigned int sew = GET_MODE_CLASS (mode) == MODE_VECTOR_BOOL
+		       ? 8
+		       : GET_MODE_BITSIZE (GET_MODE_INNER (mode));
+  return sew;
+}
+
+int get_ta () { return 0; }
+int get_ma () { return 0; }
+
+
+/* Calculate SEW/LMUL ratio.  */
+unsigned int
+calculate_ratio (unsigned int sew, enum vlmul_type vlmul)
+{
+  unsigned int ratio;
+  switch (vlmul)
+    {
+    case LMUL_1:
+      ratio = sew;
+      break;
+    case LMUL_2:
+      ratio = sew / 2;
+      break;
+    case LMUL_4:
+      ratio = sew / 4;
+      break;
+    case LMUL_8:
+      ratio = sew / 8;
+      break;
+    case LMUL_F8:
+      ratio = sew * 8;
+      break;
+    case LMUL_F4:
+      ratio = sew * 4;
+      break;
+    case LMUL_F2:
+      ratio = sew * 2;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  return ratio;
+}
+
+bool
+simm5_p (rtx x)
+{
+  if (!CONST_INT_P (x))
+    return false;
+  return IN_RANGE (INTVAL (x), -16, 15);
+}
+
+bool
+neg_simm5_p (rtx x)
+{
+  if (!CONST_INT_P (x))
+    return false;
+  return IN_RANGE (INTVAL (x), -15, 16);
+}
+
+/* Emit a vlmax vsetvl instruction.  This should only be used when
+   optimization is disabled or after vsetvl insertion pass.  */
+void
+emit_hard_vlmax_vsetvl (machine_mode vmode, rtx vl)
+{
+  unsigned int sew = get_sew (vmode);
+  emit_insn (gen_vsetvl (Pmode, vl, RVV_VLMAX, gen_int_mode (sew, Pmode),
+			 gen_int_mode (get_vlmul (vmode), Pmode), const0_rtx,
+			 const0_rtx));
+}
+
+/* Get vlmul field value by comparing LMUL with BYTES_PER_RISCV_VECTOR.  */
+enum vlmul_type
+get_vlmul (machine_mode mode)
+{
+  // if (TARGET_MIN_VLEN >= 128)
+  //   return mode_vtype_infos.vlmul_for_for_vlen128[mode];
+  // else if (TARGET_MIN_VLEN == 32)
+  //   return mode_vtype_infos.vlmul_for_min_vlen32[mode];
+  // else
+  //   return mode_vtype_infos.vlmul_for_min_vlen64[mode];
+  // 这里先配个固定值吧，实在需要的代码太多
+  return LMUL_1;
+}
+
+void
+emit_vlmax_vsetvl (machine_mode vmode, rtx vl)
+{
+  unsigned int sew = get_sew (vmode);
+  enum vlmul_type vlmul = get_vlmul (vmode);
+  unsigned int ratio = calculate_ratio (sew, vlmul);
+
+  if (!optimize)
+    emit_hard_vlmax_vsetvl (vmode, vl);
+  else
+    emit_insn (gen_vlmax_avl (Pmode, vl, gen_int_mode (ratio, Pmode)));
+}
+
+typedef struct
+{
+
+  int MAX_OPERANDS;
+  int m_opno;
+  bool has_dest;
+  machine_mode dest_mode;
+  expand_operand m_ops[20]; // 这里改成一个固定长度的数组，只要大于MAX_OPERANDS即可 
+}insn_expander;
+
+/* start insn_expander functions*/
+  static void init (insn_expander *e, int n) {
+    e->MAX_OPERANDS = n;
+    e->m_opno = 0;
+    e->has_dest = false;
+  }
+
+  static void add_output_operand (insn_expander *e, rtx x, machine_mode mode)
+  {
+    create_output_operand (&e->m_ops[e->m_opno++], x, mode);
+    gcc_assert (e->m_opno <= e->MAX_OPERANDS);
+  }
+  static void add_input_operand (insn_expander *e, rtx x, machine_mode mode)
+  {
+    create_input_operand (&e->m_ops[e->m_opno++], x, mode);
+    gcc_assert (e->m_opno <= e->MAX_OPERANDS);
+  }
+  static void add_all_one_mask_operand (insn_expander *e, machine_mode mode)
+  {
+    add_input_operand (e, CONSTM1_RTX (mode), mode);
+  }
+  static void add_vundef_operand (insn_expander *e, machine_mode mode)
+  {
+    add_input_operand (e, RVV_VUNDEF (mode), mode);
+  }
+  static void add_policy_operand (insn_expander *e, enum tail_policy vta, enum mask_policy vma)
+  {
+    rtx tail_policy_rtx = gen_int_mode (vta, Pmode);
+    rtx mask_policy_rtx = gen_int_mode (vma, Pmode);
+    add_input_operand (e, tail_policy_rtx, Pmode);
+    add_input_operand (e, mask_policy_rtx, Pmode);
+  }
+  static void add_avl_type_operand (insn_expander *e, avl_type type)
+  {
+    add_input_operand (e, gen_int_mode (type, Pmode), Pmode);
+  }
+
+  static void set_dest_and_mask (insn_expander *e, rtx mask, rtx dest, machine_mode mask_mode)
+  {
+    e->dest_mode = GET_MODE (dest);
+    e->has_dest = true;
+
+    add_output_operand (e, dest, e->dest_mode);
+
+    if (mask)
+      add_input_operand (e, mask, GET_MODE (mask));
+    else
+      add_all_one_mask_operand (e, mask_mode);
+
+    add_vundef_operand (e, e->dest_mode);
+  }
+
+  static void set_len_and_policy (insn_expander *e, rtx len, bool force_vlmax = false)
+    {
+      bool vlmax_p = force_vlmax;
+      gcc_assert (e->has_dest);
+
+      if (!len)
+      {
+        vlmax_p = true;
+        len = gen_reg_rtx (Pmode);
+        emit_vlmax_vsetvl (e->dest_mode, len);
+      }
+
+      add_input_operand (e, len, Pmode);
+
+      if (GET_MODE_CLASS (e->dest_mode) != MODE_VECTOR_BOOL)
+	        add_policy_operand (e, TAIL_ANY, MASK_ANY);
+
+      add_avl_type_operand (e, vlmax_p ? avl_type::VLMAX : avl_type::NONVLMAX);
+    }
+
+  static void expand (insn_expander *e, enum insn_code icode, bool temporary_volatile_p = false)
+  {
+    if (temporary_volatile_p)
+    {
+        temporary_volatile_ok v (true);
+        expand_insn (icode, e->m_opno, e->m_ops);
+    }
+    else
+      expand_insn (icode, e->m_opno, e->m_ops);
+  }
+/* end of insn_expander functions*/
+
+static void
+emit_binop (unsigned icode, rtx *ops, machine_mode mask_mode,
+	    machine_mode scalar_mode)
+{
+  insn_expander e;
+  init(&e, 9);
+  machine_mode mode = GET_MODE (ops[0]);
+  add_output_operand (&e, ops[0], mode);
+  add_all_one_mask_operand (&e, mask_mode);
+  add_vundef_operand (&e, mode);
+  if (VECTOR_MODE_P (GET_MODE (ops[1])))
+    add_input_operand (&e, ops[1], GET_MODE (ops[1]));
+  else
+    add_input_operand (&e, ops[1], scalar_mode);
+  if (VECTOR_MODE_P (GET_MODE (ops[2])))
+    add_input_operand (&e, ops[2], GET_MODE (ops[2]));
+  else
+    add_input_operand (&e, ops[2], scalar_mode);
+  rtx vlmax = gen_reg_rtx (Pmode);
+  emit_vlmax_vsetvl (mode, vlmax);
+  add_input_operand (&e, vlmax, Pmode);
+  add_policy_operand (&e, TAIL_ANY, MASK_ANY);
+  add_avl_type_operand(&e, avl_type::VLMAX);
+  expand (&e, (enum insn_code) icode, false);
+}
+
+/* Emit vid.v instruction.  */
+
+static void
+emit_index_op (rtx target, machine_mode mask_mode)
+{
+  insn_expander e;
+  init(&e, 7);
+  machine_mode mode = GET_MODE (target);
+  add_output_operand (&e, target, mode);
+  add_all_one_mask_operand (&e, mask_mode);
+  add_vundef_operand (&e, mode);
+  rtx vlmax = gen_reg_rtx (Pmode);
+  emit_vlmax_vsetvl (mode, vlmax);
+  add_input_operand (&e, vlmax, Pmode);
+  add_policy_operand (&e, TAIL_ANY, MASK_ANY);
+  add_avl_type_operand (&e, avl_type::VLMAX);
+  expand (&e, code_for_pred_series (mode), false);
+}
+
+/* Return true if the vector misalignment factor is supported by the
+   target.  */
+bool
+riscv_support_vector_misalignment (machine_mode mode,
+				   const_tree type ATTRIBUTE_UNUSED,
+				   int misalignment,
+				   bool is_packed ATTRIBUTE_UNUSED)
+{
+  /* TODO: For RVV scalable vector auto-vectorization, we should allow
+     movmisalign<mode> pattern to handle misalign data movement to unblock
+     possible auto-vectorization.
+     RVV VLS auto-vectorization or SIMD auto-vectorization can be supported here
+     in the future.  */
+  return default_builtin_support_vector_misalignment (mode, type, misalignment,
+						      is_packed);
+}
+
+
+/* Emit an RVV unmask && vl mov from SRC to DEST.  */
+static void
+emit_pred_op (unsigned icode, rtx mask, rtx dest, rtx src, rtx len,
+	      machine_mode mask_mode, bool force_vlmax = false)
+{
+  insn_expander e;
+  init(&e, 8);
+
+  set_dest_and_mask (&e, mask, dest, mask_mode);
+
+  add_input_operand (&e, src, GET_MODE (src));
+
+  set_len_and_policy (&e, len, force_vlmax);
+
+  expand (&e, (enum insn_code) icode, MEM_P (dest) || MEM_P (src));
+}
+
+/* Emit an RVV binop.  If one of SRC1 and SRC2 is a scalar operand, its mode is
+   specified using SCALAR_MODE.  */
+static void
+emit_pred_binop (unsigned icode, rtx mask, rtx dest, rtx src1, rtx src2,
+		 rtx len, machine_mode mask_mode,
+		 machine_mode scalar_mode = VOIDmode)
+{
+  insn_expander e;
+  init(&e, 9);
+  set_dest_and_mask (&e, mask, dest, mask_mode);
+
+  gcc_assert (VECTOR_MODE_P (GET_MODE (src1))
+	      || VECTOR_MODE_P (GET_MODE (src2)));
+
+  if (VECTOR_MODE_P (GET_MODE (src1)))
+    add_input_operand (&e, src1, GET_MODE (src1));
+  else
+    add_input_operand (&e, src1, scalar_mode);
+
+  if (VECTOR_MODE_P (GET_MODE (src2)))
+    add_input_operand (&e, src2, GET_MODE (src2));
+  else
+    add_input_operand (&e, src2, scalar_mode);
+
+  set_len_and_policy (&e, len);
+
+  expand (&e, (enum insn_code) icode, MEM_P (dest) || MEM_P (src1) || MEM_P (src2));
+}
+
+/* This function emits a VLMAX vsetvli followed by the actual operation.  */
+void
+emit_vlmax_op (unsigned icode, rtx dest, rtx src, machine_mode mask_mode)
+{
+  emit_pred_op (icode, NULL_RTX, dest, src, NULL_RTX, mask_mode);
+}
+
+/* This function emits an operation with a given LEN that is determined
+   by a previously emitted VLMAX vsetvli.  */
+void
+emit_len_op (unsigned icode, rtx dest, rtx src, rtx len,
+	     machine_mode mask_mode)
+{
+  emit_pred_op (icode, NULL_RTX, dest, src, len, mask_mode);
+}
+
+void
+emit_len_binop (unsigned icode, rtx dest, rtx src1, rtx src2, rtx len,
+		machine_mode mask_mode, machine_mode scalar_mode)
+{
+  emit_pred_binop (icode, NULL_RTX, dest, src1, src2, len,
+		   mask_mode, scalar_mode);
+}
+
+/* Emit vid.v instruction.  */
+
+static void
+emit_index_op_new (rtx dest, machine_mode mask_mode)
+{
+  insn_expander e;
+  init(&e, 7);
+  set_dest_and_mask (&e, NULL, dest, mask_mode);
+
+  set_len_and_policy (&e, NULL, true);
+
+  expand (&e, code_for_pred_series (GET_MODE (dest)), false);
+}
+
+/* Expand series const vector.  */
+
+void
+expand_vec_series (rtx dest, rtx base, rtx step)
+{
+  machine_mode mode = GET_MODE (dest);
+  machine_mode inner_mode = GET_MODE_INNER (mode);
+  machine_mode mask_mode;
+  gcc_assert (get_mask_mode (mode).exists (&mask_mode));
+
+  /* VECT_IV = BASE + I * STEP.  */
+
+  /* Step 1: Generate I = { 0, 1, 2, ... } by vid.v.  */
+  rtx vid = gen_reg_rtx (mode);
+  emit_index_op_new (vid, mask_mode);
+
+  /* Step 2: Generate I * STEP.
+     - STEP is 1, we don't emit any instructions.
+     - STEP is power of 2, we use vsll.vi/vsll.vx.
+     - STEP is non-power of 2, we use vmul.vx.  */
+  rtx step_adj;
+  if (rtx_equal_p (step, const1_rtx))
+    step_adj = vid;
+  else
+    {
+      step_adj = gen_reg_rtx (mode);
+      if (CONST_INT_P (step) && pow2p_hwi (INTVAL (step)))
+	{
+	  /* Emit logical left shift operation.  */
+	  int shift = exact_log2 (INTVAL (step));
+	  rtx shift_amount = gen_int_mode (shift, Pmode);
+	  insn_code icode = code_for_pred_scalar (ASHIFT, mode);
+	  emit_len_binop (icode, step_adj, vid, shift_amount,
+			  NULL, mask_mode, Pmode);
+	}
+      else
+	{
+	  insn_code icode = code_for_pred_scalar (MULT, mode);
+	  emit_len_binop (icode, step_adj, vid, step,
+			  NULL, mask_mode, inner_mode);
+	}
+    }
+
+  /* Step 3: Generate BASE + I * STEP.
+     - BASE is 0, use result of vid.
+     - BASE is not 0, we use vadd.vx/vadd.vi.  */
+  if (rtx_equal_p (base, const0_rtx))
+    {
+      emit_move_insn (dest, step_adj);
+    }
+  else
+    {
+      rtx result = gen_reg_rtx (mode);
+      insn_code icode = code_for_pred_scalar (PLUS, mode);
+      emit_len_binop (icode, result, step_adj, base,
+			   NULL, mask_mode, inner_mode);
+      emit_move_insn (dest, result);
+    }
+}
+
+static void
+expand_const_vector (rtx target, rtx src, machine_mode mask_mode)
+{
+  machine_mode mode = GET_MODE (target);
+  scalar_mode elt_mode = GET_MODE_INNER (mode);
+  if (GET_MODE_CLASS (mode) == MODE_VECTOR_BOOL)
+    {
+      rtx elt;
+      gcc_assert (
+	const_vec_duplicate_p (src, &elt)
+	&& (rtx_equal_p (elt, const0_rtx) || rtx_equal_p (elt, const1_rtx)));
+      emit_vlmax_op (code_for_pred_mov (mode), target, src, mask_mode);
+      return;
+    }
+
+  rtx elt;
+  if (const_vec_duplicate_p (src, &elt))
+    {
+      rtx tmp = register_operand (target, mode) ? target : gen_reg_rtx (mode);
+      /* Element in range -16 ~ 15 integer or 0.0 floating-point,
+	 we use vmv.v.i instruction.  */
+      if (satisfies_constraint_vi (src) || satisfies_constraint_Wc0 (src))
+	emit_vlmax_op (code_for_pred_mov (mode), tmp, src, mask_mode);
+      else
+	emit_vlmax_op (code_for_pred_broadcast (mode), tmp,
+		       force_reg (elt_mode, elt), mask_mode);
+
+      if (tmp != target)
+	emit_move_insn (target, tmp);
+      return;
+    }
+
+  /* Support scalable const series vector.  */
+  rtx base, step;
+  if (const_vec_series_p (src, &base, &step))
+    {
+      emit_insn (gen_vec_series (mode, target, base, step));
+      return;
+    }
+
+  /* TODO: We only support const duplicate vector for now. More cases
+     will be supported when we support auto-vectorization:
+
+       1. multiple elts duplicate vector.
+       2. multiple patterns with multiple elts.  */
+}
+
+bool
+sew64_scalar_helper (rtx *operands, rtx *scalar_op, rtx vl,
+		     machine_mode vector_mode, machine_mode mask_mode,
+		     bool has_vi_variant_p,
+		     void (*emit_vector_func) (rtx *, rtx))
+{
+  machine_mode scalar_mode = GET_MODE_INNER (vector_mode);
+  if (has_vi_variant_p)
+    {
+      *scalar_op = force_reg (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (TARGET_64BIT)
+    {
+      if (!rtx_equal_p (*scalar_op, const0_rtx))
+	*scalar_op = force_reg (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (immediate_operand (*scalar_op, Pmode))
+    {
+      if (!rtx_equal_p (*scalar_op, const0_rtx))
+	*scalar_op = force_reg (Pmode, *scalar_op);
+
+      *scalar_op = gen_rtx_SIGN_EXTEND (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (CONST_INT_P (*scalar_op))
+    *scalar_op = force_reg (scalar_mode, *scalar_op);
+
+  rtx tmp = gen_reg_rtx (vector_mode);
+  emit_len_op (code_for_pred_broadcast (vector_mode), tmp,
+			     *scalar_op, vl, mask_mode);
+  emit_vector_func (operands, tmp);
+
+  return true;
+}
+
+
+bool
+has_vi_variant_p (rtx_code code, rtx x)
+{
+  switch (code)
+    {
+    case PLUS:
+    case AND:
+    case IOR:
+    case XOR:
+    case SS_PLUS:
+    case US_PLUS:
+    case EQ:
+    case NE:
+    case LE:
+    case LEU:
+    case GT:
+    case GTU:
+      return simm5_p (x);
+
+    case LT:
+    case LTU:
+    case GE:
+    case GEU:
+    case MINUS:
+    case SS_MINUS:
+      return neg_simm5_p (x);
+
+    default:
+      return false;
+    }
+}
+
+rtx
+gen_avl_for_scalar_move (rtx avl)
+{
+  /* AVL for scalar move has different behavior between 0 and large than 0.  */
+  if (CONST_INT_P (avl))
+    {
+      /* So we could just set AVL to 1 for any constant other than 0.  */
+      if (rtx_equal_p (avl, const0_rtx))
+	return const0_rtx;
+      else
+	return const1_rtx;
+    }
+  else
+    {
+      /* For non-constant value, we set any non zero value to 1 by
+	 `sgtu new_avl,input_avl,zero` + `vsetvli`.  */
+      rtx tmp = gen_reg_rtx (Pmode);
+      emit_insn (
+	gen_rtx_SET (tmp, gen_rtx_fmt_ee (GTU, Pmode, avl, const0_rtx)));
+      return tmp;
+    }
+}
+
+/* Get { ... ,0, 0, 0, ..., 0, 0, 0, 1 } mask.  */
+rtx
+gen_scalar_move_mask (machine_mode mode)
+{
+  rtx_vector_builder builder (mode, 1, 2);
+  builder.quick_push (const1_rtx);
+  builder.quick_push (const0_rtx);
+  return builder.build ();
+}
+
+/* Return true if X is a const_vector with all duplicate elements, which is in
+   the range between MINVAL and MAXVAL.  */
+bool
+const_vec_all_same_in_range_p (rtx x, HOST_WIDE_INT minval,
+			       HOST_WIDE_INT maxval)
+{
+  rtx elt;
+  return (const_vec_duplicate_p (x, &elt) && CONST_INT_P (elt)
+	  && IN_RANGE (INTVAL (elt), minval, maxval));
+}
+
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
@@ -6794,6 +7464,9 @@ riscv_asan_shadow_offset (void)
 
 #undef TARGET_ASAN_SHADOW_OFFSET
 #define TARGET_ASAN_SHADOW_OFFSET riscv_asan_shadow_offset
+
+#undef TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT
+#define TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT riscv_support_vector_misalignment
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

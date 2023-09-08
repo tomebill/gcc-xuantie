@@ -281,6 +281,16 @@
   (ior (match_operand 0 "neg_const_vector_int_operand")
        (match_operand 0 "register_operand")))
 
+;; (define_predicate "vector_arith_operand"
+;;   (ior (match_operand 0 "register_operand")
+;;        (and (match_code "const_vector")
+;;             (match_test "const_vec_all_same_in_range_p (op, -16, 15)"))))
+
+(define_predicate "vector_neg_arith_operand"
+  (ior (match_operand 0 "register_operand")
+       (and (match_code "const_vector")
+            (match_test "const_vec_all_same_in_range_p (op, -15, 16)"))))
+
 (define_predicate "vector_move_operand"
   (ior (match_operand 0 "nonimmediate_operand")
        (match_test "const_vec_duplicate_p (op)")))
@@ -372,3 +382,51 @@
 (define_predicate "const63_operand"
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 63")))
+
+(define_predicate "vector_all_trues_mask_operand"
+  (and (match_code "const_vector")
+       (match_test "op == CONSTM1_RTX (GET_MODE (op))")))
+
+(define_predicate "vector_mask_operand"
+  (ior (match_operand 0 "register_operand")
+       (match_operand 0 "vector_all_trues_mask_operand")))
+
+;; Predicates for the V extension.
+(define_special_predicate "vector_length_operand"
+  (ior (match_operand 0 "pmode_register_operand")
+       (match_operand 0 "const_csr_operand")))
+
+(define_predicate "vector_undef_operand"
+  (match_test "rtx_equal_p (op, RVV_VUNDEF (GET_MODE (op)))"))
+
+(define_predicate "vector_merge_operand"
+  (ior (match_operand 0 "register_operand")
+       (match_operand 0 "vector_undef_operand")))
+
+;; A special predicate that doesn't match a particular mode.
+(define_special_predicate "vector_any_register_operand"
+  (match_code "reg"))
+
+(define_predicate "reg_or_int_operand"
+  (ior (match_operand 0 "register_operand")
+       (match_operand 0 "const_int_operand")))
+
+(define_predicate "vector_least_significant_set_mask_operand"
+  (and (match_code "const_vector")
+       (match_test "rtx_equal_p (op, gen_scalar_move_mask (GET_MODE (op)))")))
+
+(define_predicate "vector_broadcast_mask_operand"
+  (ior (match_operand 0 "vector_least_significant_set_mask_operand")
+    (ior (match_operand 0 "register_operand")
+         (match_operand 0 "vector_all_trues_mask_operand"))))
+
+;; The scalar operand can be directly broadcast by RVV instructions.
+(define_predicate "direct_broadcast_operand"
+  (and (match_test "!(reload_completed && !FLOAT_MODE_P (GET_MODE (op))
+		&& (register_operand (op, GET_MODE (op)) || CONST_INT_P (op)
+		|| rtx_equal_p (op, CONST0_RTX (GET_MODE (op))))
+		&& maybe_gt (GET_MODE_BITSIZE (GET_MODE (op)), GET_MODE_BITSIZE (Pmode)))")
+    (ior (match_test "rtx_equal_p (op, CONST0_RTX (GET_MODE (op)))")
+         (ior (match_operand 0 "const_int_operand")
+              (ior (match_operand 0 "register_operand")
+                   (match_test "satisfies_constraint_Wdm (op)"))))))

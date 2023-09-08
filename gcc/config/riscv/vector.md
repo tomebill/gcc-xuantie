@@ -11285,3 +11285,378 @@
 
 (include "vector-v0p7.md")
 (include "vector-thead.md")
+
+;; 移植
+(define_constants [
+   (INVALID_ATTRIBUTE            255)
+   (X0_REGNUM                      0)
+])
+
+;; The default SEW of RVV instruction. This attribute doesn't mean the instruction
+;; is necessary to require SEW check for example vlm.v which require ratio to
+;; check. However, we need default value of SEW for vsetvl instruction since there
+;; is no field for ratio in the vsetvl instruction encoding.
+(define_attr "sew" ""
+  (cond [(eq_attr "mode" "VNx2QI,VNx4QI,VNx8QI,VNx16QI,VNx32QI,VNx64QI,\
+			  VNx2BI,VNx4BI,VNx8BI,VNx16BI,VNx32BI,VNx64BI,\
+			  VNx128QI,VNx128BI,VNx2x64QI,VNx2x32QI,VNx3x32QI,VNx4x32QI,\
+			  VNx2x16QI,VNx3x16QI,VNx4x16QI,VNx5x16QI,VNx6x16QI,VNx7x16QI,VNx8x16QI,\
+			  VNx2x8QI,VNx3x8QI,VNx4x8QI,VNx5x8QI,VNx6x8QI,VNx7x8QI,VNx8x8QI,\
+			  VNx2x4QI,VNx3x4QI,VNx4x4QI,VNx5x4QI,VNx6x4QI,VNx7x4QI,VNx8x4QI,\
+			  VNx2x2QI,VNx3x2QI,VNx4x2QI,VNx5x2QI,VNx6x2QI,VNx7x2QI,VNx8x2QI")
+	 (const_int 8)
+	 (eq_attr "mode" "VNx2HI,VNx4HI,VNx8HI,VNx16HI,VNx32HI,VNx64HI,\
+			  VNx2x32HI,VNx2x16HI,VNx3x16HI,VNx4x16HI,\
+			  VNx2x8HI,VNx3x8HI,VNx4x8HI,VNx5x8HI,VNx6x8HI,VNx7x8HI,VNx8x8HI,\
+			  VNx2x4HI,VNx3x4HI,VNx4x4HI,VNx5x4HI,VNx6x4HI,VNx7x4HI,VNx8x4HI,\
+			  VNx2x2HI,VNx3x2HI,VNx4x2HI,VNx5x2HI,VNx6x2HI,VNx7x2HI,VNx8x2HI")
+	 (const_int 16)
+	 (eq_attr "mode" "VNx2SI,VNx4SI,VNx8SI,VNx16SI,VNx32SI,\
+			  VNx2SF,VNx4SF,VNx8SF,VNx16SF,VNx32SF,\
+			  VNx2x16SI,VNx2x8SI,VNx3x8SI,VNx4x8SI,\
+			  VNx2x4SI,VNx3x4SI,VNx4x4SI,VNx5x4SI,VNx6x4SI,VNx7x4SI,VNx8x4SI,\
+			  VNx2x2SI,VNx3x2SI,VNx4x2SI,VNx5x2SI,VNx6x2SI,VNx7x2SI,VNx8x2SI,\
+			  VNx2x16SF,VNx2x8SF,VNx3x8SF,VNx4x8SF,\
+			  VNx2x4SF,VNx3x4SF,VNx4x4SF,VNx5x4SF,VNx6x4SF,VNx7x4SF,VNx8x4SF,\
+			  VNx2x2SF,VNx3x2SF,VNx4x2SF,VNx5x2SF,VNx6x2SF,VNx7x2SF,VNx8x2SF")
+	 (const_int 32)
+	 (eq_attr "mode" "VNx2DI,VNx4DI,VNx8DI,VNx16DI,\
+			  VNx2DF,VNx4DF,VNx8DF,VNx16DF,\
+			  VNx2x8DI,VNx2x4DI,VNx3x4DI,VNx4x4DI,\
+			  VNx2x2DI,VNx3x2DI,VNx4x2DI,VNx5x2DI,VNx6x2DI,VNx7x2DI,VNx8x2DI,\
+			  VNx2x8DF,VNx2x4DF,VNx3x4DF,VNx4x4DF,\
+			  VNx2x2DF,VNx3x2DF,VNx4x2DF,VNx5x2DF,VNx6x2DF,VNx7x2DF,VNx8x2DF")
+	 (const_int 64)]
+	(const_int INVALID_ATTRIBUTE)))
+
+;; Ditto to LMUL.
+(define_attr "vlmul" ""
+  (cond [
+	 (eq_attr "mode" "VNx2QI,VNx2BI,VNx2x2QI,VNx3x2QI,VNx4x2QI,VNx5x2QI,VNx6x2QI,VNx7x2QI,VNx8x2QI")
+	   (symbol_ref "get_vlmul(E_VNx2QImode)")
+	 (eq_attr "mode" "VNx4QI,VNx4BI,VNx2x4QI,VNx3x4QI,VNx4x4QI,VNx5x4QI,VNx6x4QI,VNx7x4QI,VNx8x4QI")
+	   (symbol_ref "get_vlmul(E_VNx4QImode)")
+	 (eq_attr "mode" "VNx8QI,VNx8BI,VNx2x8QI,VNx3x8QI,VNx4x8QI,VNx5x8QI,VNx6x8QI,VNx7x8QI,VNx8x8QI")
+	   (symbol_ref "get_vlmul(E_VNx8QImode)")
+	 (eq_attr "mode" "VNx16QI,VNx16BI,VNx2x16QI,VNx3x16QI,VNx4x16QI,VNx5x16QI,VNx6x16QI,VNx7x16QI,VNx8x16QI")
+	   (symbol_ref "get_vlmul(E_VNx16QImode)")
+	 (eq_attr "mode" "VNx32QI,VNx32BI,VNx2x32QI,VNx3x32QI,VNx4x32QI")
+	   (symbol_ref "get_vlmul(E_VNx32QImode)")
+	 (eq_attr "mode" "VNx64QI,VNx64BI,VNx2x64QI")
+	   (symbol_ref "get_vlmul(E_VNx64QImode)")
+	 (eq_attr "mode" "VNx128QI,VNx128BI")
+	   (symbol_ref "get_vlmul(E_VNx128QImode)")
+	 (eq_attr "mode" "VNx2HI,VNx2x2HI,VNx3x2HI,VNx4x2HI,VNx5x2HI,VNx6x2HI,VNx7x2HI,VNx8x2HI")
+	   (symbol_ref "get_vlmul(E_VNx2HImode)")
+	 (eq_attr "mode" "VNx4HI,VNx2x4HI,VNx3x4HI,VNx4x4HI,VNx5x4HI,VNx6x4HI,VNx7x4HI,VNx8x4HI")
+	   (symbol_ref "get_vlmul(E_VNx4HImode)")
+	 (eq_attr "mode" "VNx8HI,VNx2x8HI,VNx3x8HI,VNx4x8HI,VNx5x8HI,VNx6x8HI,VNx7x8HI,VNx8x8HI")
+	   (symbol_ref "get_vlmul(E_VNx8HImode)")
+	 (eq_attr "mode" "VNx16HI,VNx2x16HI,VNx3x16HI,VNx4x16HI")
+	   (symbol_ref "get_vlmul(E_VNx16HImode)")
+	 (eq_attr "mode" "VNx32HI,VNx2x32HI")
+	   (symbol_ref "get_vlmul(E_VNx32HImode)")
+	 (eq_attr "mode" "VNx64HI")
+	   (symbol_ref "get_vlmul(E_VNx64HImode)")
+	 (eq_attr "mode" "VNx2SI,VNx2SF,VNx2x2SI,VNx3x2SI,VNx4x2SI,VNx5x2SI,VNx6x2SI,VNx7x2SI,VNx8x2SI,\
+	 		  VNx2x2SF,VNx3x2SF,VNx4x2SF,VNx5x2SF,VNx6x2SF,VNx7x2SF,VNx8x2SF")
+	   (symbol_ref "get_vlmul(E_VNx2SImode)")
+	 (eq_attr "mode" "VNx4SI,VNx4SF,VNx2x4SI,VNx3x4SI,VNx4x4SI,VNx5x4SI,VNx6x4SI,VNx7x4SI,VNx8x4SI,\
+	 		  VNx2x4SF,VNx3x4SF,VNx4x4SF,VNx5x4SF,VNx6x4SF,VNx7x4SF,VNx8x4SF")
+	   (symbol_ref "get_vlmul(E_VNx4SImode)")
+	 (eq_attr "mode" "VNx8SI,VNx8SF,VNx2x8SI,VNx3x8SI,VNx4x8SI,VNx2x8SF,VNx3x8SF,VNx4x8SF")
+	   (symbol_ref "get_vlmul(E_VNx8SImode)")
+	 (eq_attr "mode" "VNx16SI,VNx16SF,VNx2x16SI,VNx2x16SF")
+	   (symbol_ref "get_vlmul(E_VNx16SImode)")
+	 (eq_attr "mode" "VNx32SI,VNx32SF")
+	   (symbol_ref "get_vlmul(E_VNx32SImode)")
+	 (eq_attr "mode" "VNx2DI,VNx2DF,VNx2x2DI,VNx3x2DI,VNx4x2DI,VNx5x2DI,VNx6x2DI,VNx7x2DI,VNx8x2DI,\
+	 		  VNx2x2DF,VNx3x2DF,VNx4x2DF,VNx5x2DF,VNx6x2DF,VNx7x2DF,VNx8x2DF")
+	   (symbol_ref "get_vlmul(E_VNx2DImode)")
+	 (eq_attr "mode" "VNx4DI,VNx4DF,VNx2x4DI,VNx3x4DI,VNx4x4DI,VNx2x4DF,VNx3x4DF,VNx4x4DF")
+	   (symbol_ref "get_vlmul(E_VNx4DImode)")
+	 (eq_attr "mode" "VNx8DI,VNx8DF,VNx2x8DI,VNx2x8DF")
+	   (symbol_ref "get_vlmul(E_VNx8DImode)")
+	 (eq_attr "mode" "VNx16DI,VNx16DF")
+	   (symbol_ref "get_vlmul(E_VNx16DImode)")]
+	(const_int INVALID_ATTRIBUTE)))
+
+
+;; The tail policy op value.
+(define_attr "ta" ""
+  (cond [
+	 (eq_attr "type" "   vset,vsetvl,varith,vcmp,vshift,vlogical,vmove,vmask,vred_bit,vmul,vmadd,vred_sum,\
+   vred_max,vdiv,vload,vstore,\
+   vfadd,vfsgnj,vfmul,vfwmul,vfmadd,vfwmadd,vfred,vfmove,vfmax,vfcmp,vfcvt,\
+   vfdiv,vfsqrt,vfrec,vfclass")
+	   (symbol_ref "0")]
+	(const_int 0)))
+
+;; The mask policy op value.
+(define_attr "ma" ""
+  (cond [
+	 (eq_attr "type" "   vset,vsetvl,varith,vcmp,vshift,vlogical,vmove,vmask,vred_bit,vmul,vmadd,vred_sum,\
+   vred_max,vdiv,vload,vstore,\
+   vfadd,vfsgnj,vfmul,vfwmul,vfmadd,vfwmadd,vfred,vfmove,vfmax,vfcmp,vfcvt,\
+   vfdiv,vfsqrt,vfrec,vfclass")
+	   (symbol_ref "0")]
+	(const_int 0)))
+
+(define_insn "@vsetvl<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P [(match_operand:P 1 "csr_operand" "rK")
+		   (match_operand 2 "const_int_operand" "i")
+		   (match_operand 3 "const_int_operand" "i")
+		   (match_operand 4 "const_int_operand" "i")
+		   (match_operand 5 "const_int_operand" "i")] UNSPEC_VSETVL))
+   (set (reg:SI VL_REGNUM)
+	(unspec:SI [(match_dup 1)
+		    (match_dup 2)
+		    (match_dup 3)] UNSPEC_VSETVL))
+   (set (reg:SI VTYPE_REGNUM)
+	(unspec:SI [(match_dup 2)
+		    (match_dup 3)
+		    (match_dup 4)
+		    (match_dup 5)] UNSPEC_VSETVL))]
+  "TARGET_VECTOR"
+  "vset%i1vli\t%0,%1,e%2,%m3,t%p4,m%p5"
+  [(set_attr "type" "vsetvl")
+   (set_attr "mode" "<MODE>")
+   (set (attr "sew") (symbol_ref "INTVAL (operands[2])"))
+   (set (attr "vlmul") (symbol_ref "INTVAL (operands[3])"))
+   (set (attr "ta") (symbol_ref "INTVAL (operands[4])"))
+   (set (attr "ma") (symbol_ref "INTVAL (operands[5])"))])
+
+(define_insn "@vlmax_avl<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P [(match_operand:P 1 "const_int_operand" "i")] UNSPEC_VLMAX))]
+  "TARGET_VECTOR"
+  "")
+
+(define_insn "@vundefined<mode>"
+  [(set (match_operand:V 0 "register_operand" "=vr")
+	(unspec:V [(reg:SI X0_REGNUM)] UNSPEC_VUNDEF))]
+  "TARGET_VECTOR"
+  "")
+
+(define_insn "@vundefined<mode>"
+  [(set (match_operand:VB 0 "register_operand" "=vr")
+	(unspec:VB [(reg:SI X0_REGNUM)] UNSPEC_VUNDEF))]
+  "TARGET_VECTOR"
+  "")
+
+(define_expand "@vreinterpret<mode>"
+  [(set (match_operand:V 0 "register_operand")
+	(match_operand 1 "vector_any_register_operand"))]
+  "TARGET_VECTOR"
+  {
+    emit_move_insn (operands[0], gen_lowpart (<MODE>mode, operands[1]));
+    DONE;
+  }
+)
+
+(define_insn "@pred_series<mode>"
+  [(set (match_operand:VI 0 "register_operand"           "=vd, vd, vr, vr")
+	(if_then_else:VI
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" " vm, vm,Wc1,Wc1")
+	     (match_operand 3 "vector_length_operand"    " rK, rK, rK, rK")
+	     (match_operand 4 "const_int_operand"        "  i,  i,  i,  i")
+	     (match_operand 5 "const_int_operand"        "  i,  i,  i,  i")
+	     (match_operand 6 "const_int_operand"        "  i,  i,  i,  i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (vec_series:VI (const_int 0) (const_int 1))
+	  (match_operand:VI 2 "vector_merge_operand"     " vu,  0, vu,  0")))]
+  "TARGET_VECTOR"
+  "vid.v\t%0%p1"
+  [(set_attr "type" "unknown")     ;; 这里当前版本不支持vmidx，所以先换个别的指令临时替代
+   (set_attr "mode" "<MODE>")])
+
+
+;; -------------------------------------------------------------------------------
+;; ---- Predicated fixed-point operations
+;; -------------------------------------------------------------------------------
+;; Includes:
+;; - 12.1 Vector Single-Width Saturating Add and Subtract
+;; - 12.2 Vector Single-Width Aaveraging Add and Subtract
+;; - 12.3 Vector Single-Width Fractional Multiply with Rounding and Saturation
+;; - 12.4 Vector Single-Width Scaling Shift Instructions
+;; - 12.5 Vector Narrowing Fixed-Point Clip Instructions
+;; -------------------------------------------------------------------------------
+
+;; Saturating Add and Subtract
+(define_insn "@pred_<optab><mode>"
+  [(set (match_operand:VI 0 "register_operand"           "=vd, vd, vr, vr, vd, vd, vr, vr")
+	(if_then_else:VI
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" " vm, vm,Wc1,Wc1, vm, vm,Wc1,Wc1")
+	     (match_operand 5 "vector_length_operand"    " rK, rK, rK, rK, rK, rK, rK, rK")
+	     (match_operand 6 "const_int_operand"        "  i,  i,  i,  i,  i,  i,  i,  i")
+	     (match_operand 7 "const_int_operand"        "  i,  i,  i,  i,  i,  i,  i,  i")
+	     (match_operand 8 "const_int_operand"        "  i,  i,  i,  i,  i,  i,  i,  i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (any_sat_int_binop:VI
+	    (match_operand:VI 3 "<binop_rhs1_predicate>" " vr, vr, vr, vr, vr, vr, vr, vr")
+	    (match_operand:VI 4 "<binop_rhs2_predicate>" "<binop_rhs2_constraint>"))
+	  (match_operand:VI 2 "vector_merge_operand"     " vu,  0, vu,  0, vu,  0, vu,  0")))]
+  "TARGET_VECTOR"
+  "@
+   v<insn>.vv\t%0,%3,%4%p1
+   v<insn>.vv\t%0,%3,%4%p1
+   v<insn>.vv\t%0,%3,%4%p1
+   v<insn>.vv\t%0,%3,%4%p1
+   v<binop_vi_variant_insn>\t%0,<binop_vi_variant_op>%p1
+   v<binop_vi_variant_insn>\t%0,<binop_vi_variant_op>%p1
+   v<binop_vi_variant_insn>\t%0,<binop_vi_variant_op>%p1
+   v<binop_vi_variant_insn>\t%0,<binop_vi_variant_op>%p1"
+  [(set_attr "type" "<int_binop_insn_type>")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "@pred_<optab><mode>"
+  [(set (match_operand:VF 0 "register_operand"           "=vd, vd, vr, vr")
+	(if_then_else:VF
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" " vm, vm,Wc1,Wc1")
+	     (match_operand 5 "vector_length_operand"    " rK, rK, rK, rK")
+	     (match_operand 6 "const_int_operand"        "  i,  i,  i,  i")
+	     (match_operand 7 "const_int_operand"        "  i,  i,  i,  i")
+	     (match_operand 8 "const_int_operand"        "  i,  i,  i,  i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (any_float_binop:VF
+	    (match_operand:VF 3 "register_operand"       " vr, vr, vr, vr")
+	    (match_operand:VF 4 "register_operand"       " vr, vr, vr, vr"))
+	  (match_operand:VF 2 "vector_merge_operand"     " vu,  0, vu,  0")))]
+  "TARGET_VECTOR"
+  "vf<insn>.vv\t%0,%3,%4%p1"
+  [(set_attr "type" "<float_insn_type>")
+   (set_attr "mode" "<MODE>")])
+
+(define_expand "@pred_<optab><mode>_scalar"
+  [(set (match_operand:VI_D 0 "register_operand")
+	(if_then_else:VI_D
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand")
+	     (match_operand 5 "vector_length_operand")
+	     (match_operand 6 "const_int_operand")
+	     (match_operand 7 "const_int_operand")
+	     (match_operand 8 "const_int_operand")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (sat_int_minus_binop:VI_D
+	    (match_operand:VI_D 3 "register_operand")
+	    (vec_duplicate:VI_D
+	      (match_operand:<VEL> 4 "reg_or_int_operand")))
+	  (match_operand:VI_D 2 "vector_merge_operand")))]
+  "TARGET_VECTOR"
+{
+  if (sew64_scalar_helper (
+	operands,
+	/* scalar op */&operands[4],
+	/* vl */operands[5],
+	<MODE>mode,
+	<VM>mode,
+	has_vi_variant_p (<CODE>, operands[4]),
+	[] (rtx *operands, rtx boardcast_scalar) {
+	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
+	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[6], operands[7], operands[8]));
+        }))
+    DONE;
+})
+
+;; vlm.v/vsm.v/vmclr.m/vmset.m.
+;; constraint alternative 0 match vlm.v.
+;; constraint alternative 1 match vsm.v.
+;; constraint alternative 3 match vmclr.m.
+;; constraint alternative 4 match vmset.m.
+(define_insn_and_split "@pred_mov<mode>"
+  [(set (match_operand:VB 0 "nonimmediate_operand"               "=vr,   m,  vr,  vr,  vr")
+	(if_then_else:VB
+	  (unspec:VB
+	    [(match_operand:VB 1 "vector_all_trues_mask_operand" "Wc1, Wc1, Wc1, Wc1, Wc1")
+	     (match_operand 4 "vector_length_operand"            " rK,  rK,  rK,  rK,  rK")
+	     (match_operand 5 "const_int_operand"                "  i,   i,   i,   i,   i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (match_operand:VB 3 "vector_move_operand"              "  m,  vr,  vr, Wc0, Wc1")
+	  (match_operand:VB 2 "vector_undef_operand"             " vu,  vu,  vu,  vu,  vu")))]
+  "TARGET_VECTOR"
+  "@
+   vlm.v\t%0,%3
+   vsm.v\t%3,%0
+   vmmv.m\t%0,%3
+   vmclr.m\t%0
+   vmset.m\t%0"
+  "&& register_operand (operands[0], <MODE>mode)
+   && register_operand (operands[3], <MODE>mode)
+   && INTVAL (operands[5]) == VLMAX"
+  [(set (match_dup 0) (match_dup 3))]
+  ""
+  [(set_attr "type" "vldm,vstm,vmalu,vmalu,vmalu")
+   (set_attr "mode" "<MODE>")])
+
+;; -------------------------------------------------------------------------------
+;; ---- Predicated Broadcast
+;; -------------------------------------------------------------------------------
+;; Includes:
+;; - 7.5. Vector Strided Instructions (zero stride)
+;; - 11.16 Vector Integer Move Instructions (vmv.v.x)
+;; - 13.16 Vector Floating-Point Move Instruction (vfmv.v.f)
+;; - 16.1 Integer Scalar Move Instructions (vmv.s.x)
+;; - 16.2 Floating-Point Scalar Move Instructions (vfmv.s.f)
+;; -------------------------------------------------------------------------------
+
+;; According to RVV ISA, vector-scalar instruction doesn't support
+;; operand fetched from 2 consecutive registers, so we should use
+;; vlse.v which is a memory access to broadcast a DImode scalar into a vector.
+;;
+;; Since the optimization flow in GCC is as follows:
+;; expand --> LICM (Loop invariant) --> split.
+;; To use LICM optimization, we postpone generation of vlse.v to split stage since
+;; a memory access instruction can not be optimized by LICM (Loop invariant).
+(define_expand "@pred_broadcast<mode>"
+  [(set (match_operand:V 0 "register_operand")
+	(if_then_else:V
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_broadcast_mask_operand")
+	     (match_operand 4 "vector_length_operand")
+	     (match_operand 5 "const_int_operand")
+	     (match_operand 6 "const_int_operand")
+	     (match_operand 7 "const_int_operand")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (vec_duplicate:V
+	    (match_operand:<VEL> 3 "direct_broadcast_operand"))
+	  (match_operand:V 2 "vector_merge_operand")))]
+  "TARGET_VECTOR"
+{
+  /* Handle vmv.s.x instruction which has memory scalar.  */
+  if (satisfies_constraint_Wdm (operands[3]) || simm5_p (operands[3])
+      || rtx_equal_p (operands[3], CONST0_RTX (<VEL>mode)))
+    {
+      if (satisfies_constraint_Wb1 (operands[1]))
+        {
+          // Case 1: vmv.s.x (TA) ==> vlse.v (TA)
+          if (satisfies_constraint_vu (operands[2]))
+            operands[1] = CONSTM1_RTX (<VM>mode);
+          else if (GET_MODE_BITSIZE (<VEL>mode) > GET_MODE_BITSIZE (Pmode))
+            {
+	      // Case 2: vmv.s.x (TU) ==> andi vl + vlse.v (TU) in RV32 system.
+	      operands[4] = gen_avl_for_scalar_move (operands[4]);
+	      operands[1] = CONSTM1_RTX (<VM>mode);
+	    }
+          else
+            operands[3] = force_reg (<VEL>mode, operands[3]);
+	}
+    }
+  else if (GET_MODE_BITSIZE (<VEL>mode) > GET_MODE_BITSIZE (Pmode)
+           && immediate_operand (operands[3], Pmode))
+    operands[3] = gen_rtx_SIGN_EXTEND (<VEL>mode, force_reg (Pmode, operands[3]));
+  else
+    operands[3] = force_reg (<VEL>mode, operands[3]);
+})
+
+(include "autovec.md")
